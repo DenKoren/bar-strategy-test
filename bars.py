@@ -56,6 +56,21 @@ class Bar:
     def is_closed(self):
         return self.close != 0
 
+    def join(self, bar2):
+        """
+        :type bar2: Bar
+        :rtype: Bar
+        """
+        return Bar(
+            self.date,
+            self.time,
+            self.open,
+            max(self.max, bar2.max),
+            min(self.min, bar2.min),
+            bar2.close,
+            self.scale + bar2.scale
+        )
+
 
 class BarDiff:
     """
@@ -96,10 +111,6 @@ class BarDiff:
     @property
     def close(self):
         return self.bar2.close - self.bar1.close
-
-    @property
-    def scale(self):
-        return self.bar2.scale - self.bar1.scale
 
     @property
     def trend(self):

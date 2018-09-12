@@ -18,6 +18,7 @@ class Trader:
          ):
         self.active_deal = None
         self.skip_steps = 0
+        self.strategy_scale = 5
 
         self.story = Story()
         self.account = Cash(initial_cash)
@@ -90,6 +91,14 @@ class Trader:
         self.open_new_deal(bar)
 
     def start(self, chart_data):
+        aggregate = Trader.parse_chart_row( next(chart_data) )
+
         for row in chart_data:
             bar = Trader.parse_chart_row(row)
-            self.step(bar)
+
+            if aggregate.scale != self.strategy_scale:
+                aggregate = aggregate.join(bar)
+                continue
+
+            self.step(aggregate)
+            aggregate = bar

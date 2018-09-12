@@ -62,11 +62,13 @@ class DealsStat:
 
     def __str__(self):
         result = """
+        deals total: {total}
         profit count: {prc} ({prp}%)
         loss count: {lsc} ({lsp}%)
         return count: {rtc} ({rtp}%)
         series:
             """.format(
+            total=self.deals_count,
             prc=self.profit_deals_count,
             prp=round(self.profit_deals_count/self.deals_count * 100, 2),
             lsc=self.loss_deals_count,
