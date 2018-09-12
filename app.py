@@ -14,8 +14,8 @@ history = csv.reader(file)
 
 trader = Trader(
     10000,
-    datetime.time(23),
-    datetime.time(1)
+    datetime.time(14),
+    datetime.time(16)
 )
 
 try:

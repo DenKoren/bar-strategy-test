@@ -5,11 +5,15 @@ from bars import calc_trend
 
 
 class TrendDetector:
+    """
+    :type history: list<Bar>
+    """
     def __init__(self, quorum):
         self.quorum = quorum
 
         self.history = []
         self.last_trend = const.TREND_NONE
+        self._use_fast_detection = False
 
     def add_bar(self, bar):
         self.history.append(bar)
@@ -17,22 +21,57 @@ class TrendDetector:
 
     @property
     def trend(self):
+        if self.fast_trend_detect():
+            return self.last_trend
+
+        if self.stable_trend_detect():
+            return self.last_trend
+
+        return const.TREND_NONE
+
+    def fast_trend_detect(self):
+        if not self._use_fast_detection:
+            return False
+
+        if len(self.history) < 2:
+            return False
+
+        bar1 = self.history[-2]
+        bar2 = self.history[-1]
+
+        if (bar1.trend == bar2.trend) or (const.TREND_NONE in [bar1.trend, bar2.trend]):
+            return False
+
+        s = bar1.join(bar2)
+        if s.trend == bar1.trend:
+            return False
+
+        self.last_trend = s.trend
+        self._use_fast_detection = False
+        return True
+
+    def stable_trend_detect(self):
         if len(self.history) < self.quorum:
-            return const.TREND_NONE
+            return False
+
+        first = self.history[0]
 
         trends_same = True
-        trend = self.history[0].trend
         for bar in self.history[1:]:
-            if trend != bar.trend:
+            if first.trend != bar.trend:
                 trends_same = False
 
-        if trends_same:
-            self.last_trend = trend
+        if not trends_same:
+            return False
 
-        return self.last_trend
+        self.last_trend = first.trend
+        return True
 
     def change_quorum(self, new_quorum):
         self.quorum = new_quorum
+
+    def use_fast_detection(self):
+        self._use_fast_detection = True
 
     def __repr__(self):
         return self.__str__()

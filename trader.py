@@ -18,7 +18,7 @@ class Trader:
          ):
         self.active_deal = None
         self.skip_steps = 0
-        self.strategy_scale = 5
+        self.strategy_scale = 1
 
         self.story = Story()
         self.account = Cash(initial_cash)
@@ -57,6 +57,9 @@ class Trader:
         self.active_deal = None
 
     def open_new_deal(self, bar):
+        if self.strategy.loss_step > 4:
+            self.detector.use_fast_detection()
+
         if self.detector.trend == const.TREND_NONE:
             return
 
