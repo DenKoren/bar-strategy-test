@@ -34,6 +34,7 @@ statistics = Stat(
 
 statistics.calc()
 
+print(trader)
 print(statistics)
 
 # except UserWarning as e:

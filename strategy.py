@@ -9,15 +9,24 @@ class TrendDetector:
     :type history: list<Bar>
     """
     def __init__(self, quorum):
-        self.quorum = quorum
+        self.default_quorum = quorum
 
         self.history = []
         self.last_trend = const.TREND_NONE
         self._use_fast_detection = False
 
+        self.strategy = None
+
     def add_bar(self, bar):
         self.history.append(bar)
         self.history = self.history[-self.quorum:]
+
+    @property
+    def quorum(self):
+        if self.strategy is None:
+            return self.default_quorum
+
+        return self.default_quorum + round(self.strategy.loss_step/3)
 
     @property
     def trend(self):
@@ -27,7 +36,7 @@ class TrendDetector:
         if self.stable_trend_detect():
             return self.last_trend
 
-        return const.TREND_NONE
+        return self.last_trend
 
     def fast_trend_detect(self):
         if not self._use_fast_detection:
@@ -42,11 +51,12 @@ class TrendDetector:
         if (bar1.trend == bar2.trend) or (const.TREND_NONE in [bar1.trend, bar2.trend]):
             return False
 
-        s = bar1.join(bar2)
-        if s.trend == bar1.trend:
+        combined = bar1.join(bar2)
+        if combined.trend == bar1.trend:
+            # means that bar1.close and bar2.close are on the same side of bar1.open. No trend change.
             return False
 
-        self.last_trend = s.trend
+        self.last_trend = combined.trend
         self._use_fast_detection = False
         return True
 
@@ -68,7 +78,7 @@ class TrendDetector:
         return True
 
     def change_quorum(self, new_quorum):
-        self.quorum = new_quorum
+        self.default_quorum = new_quorum
 
     def use_fast_detection(self):
         self._use_fast_detection = True
@@ -84,10 +94,16 @@ class Strategy:
     def __init__(self, basic_deal_size, trade_start, trade_end, profit_factor):
         self.basic_deal_size = basic_deal_size
         self.profit_factor = profit_factor
+
         self.trade_start = trade_start
         self.trade_end = trade_end
 
+        self.default_skip_from = 4
+
         self.losses = []
+        self.skip_from = 0
+
+        self.reset_risk_level()
 
     def close_deal(self, deal, price):
         """
@@ -101,13 +117,20 @@ class Strategy:
 
         if deal.result == const.DEAL_RESULT_PROFIT:
             profit = deal.size * (1 + self.profit_factor)
-            self.losses = []
+            self.reset_risk_level()
         elif deal.result == const.DEAL_RESULT_RETURN:
             profit = deal.size
         else:
-            self.losses.append(deal.size)
+            self.inc_risk_level(deal.size)
 
         return profit
+
+    def inc_risk_level(self, loss_size):
+        self.losses.append(loss_size)
+
+    def reset_risk_level(self):
+        self.losses = []
+        self.skip_from = self.default_skip_from
 
     @property
     def next_deal_size(self):
@@ -125,6 +148,15 @@ class Strategy:
     def loss_step(self):
         return len(self.losses)
 
+    @property
+    def should_skip(self):
+        result = self.loss_step >= self.skip_from
+
+        if result:
+            self.skip_from += 1
+
+        return result
+
     def can_trade(self, bar):
         return self.has_losses or self.is_trade_time(bar)
 
@@ -136,9 +168,6 @@ class Strategy:
             return self.trade_start < bar.time < self.trade_end
         elif self.trade_start > self.trade_end:
             return (self.trade_start < bar.time) or (bar.time < self.trade_end)
-
-    def reset_losses(self):
-        self.losses = []
 
 
 class Deal:

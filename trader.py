@@ -16,9 +16,12 @@ class Trader:
             start,
             stop
          ):
-        self.active_deal = None
         self.skip_steps = 0
-        self.strategy_scale = 1
+        self.fast_detect_step = 4000
+        self.strategy_scale = 5
+
+        self.active_deal = None
+        self.to_skip = 0
 
         self.story = Story()
         self.account = Cash(initial_cash)
@@ -29,6 +32,8 @@ class Trader:
             stop,
             0.80
         )
+
+        self.detector.strategy = self.strategy
 
     @staticmethod
     def parse_chart_row(row):
@@ -56,11 +61,30 @@ class Trader:
 
         self.active_deal = None
 
-    def open_new_deal(self, bar):
-        if self.strategy.loss_step > 4:
+    def manage_risks(self):
+        if self.strategy.should_skip:
+            self.to_skip = self.skip_steps
+
+        if self.strategy.loss_step > self.fast_detect_step:
             self.detector.use_fast_detection()
 
+    def can_open_deal(self):
+        if self.to_skip > 0:
+            self.to_skip -= 1
+            return False
+
         if self.detector.trend == const.TREND_NONE:
+            return False
+
+        return True
+
+    def open_new_deal(self, bar):
+        if not self.strategy.can_trade(bar):
+            return
+
+        self.manage_risks()
+
+        if not self.can_open_deal():
             return
 
         deal_size = self.strategy.next_deal_size
@@ -72,30 +96,16 @@ class Trader:
         self.story.add_deal(new_deal)
 
     def step(self, bar):
-        prev_bar = self.story.get_last_bar()
-        self.story.add_bar(bar)
-
-        if prev_bar is not None:
-            self.detector.add_bar(prev_bar)
-
         self.close_active_deal(bar)
-
-        if not self.strategy.can_trade(bar):
-            return
-
-        # if self.strategy.loss_step > 3:
-        #     self.skip_steps = 10
-        #     self.strategy.reset_losses()
-        #
-        # if self.skip_steps > 0:
-        #     self.skip_steps -= 1
-        #     return
-
         self.open_new_deal(bar)
 
-    def start(self, chart_data):
-        aggregate = Trader.parse_chart_row( next(chart_data) )
+        self.story.add_bar(bar)
+        self.detector.add_bar(bar)
 
+    def start(self, chart_data):
+        aggregate = Trader.parse_chart_row(next(chart_data))
+
+        bar = None
         for row in chart_data:
             bar = Trader.parse_chart_row(row)
 
@@ -105,3 +115,17 @@ class Trader:
 
             self.step(aggregate)
             aggregate = bar
+
+        if bar is not None:
+            self.close_active_deal(bar)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return """
+        strategy scale: {scale} min
+        fast detect from: {fast_detect_step} step""".format(
+            scale=self.strategy_scale,
+            fast_detect_step=self.fast_detect_step
+        )

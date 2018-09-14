@@ -29,7 +29,7 @@ class DealsStat:
         for deal in self.deals[1:]:
             self.count_profit_loss(deal)
 
-            if prev_deal.is_loss and deal.is_loss:
+            if prev_deal.is_loss and (deal.is_loss or deal.is_return):
                 if not loss_series:
                     loss_series = True
                     loss_series_start = prev_deal.open_time
@@ -118,10 +118,8 @@ class Stat:
         return self.__str__()
 
     def __str__(self):
-        return """
-        {}
-        {}
-        """.format(
+        return """{}
+        {}""".format(
             self.deals.__str__(),
             self.account.__str__(),
         )
